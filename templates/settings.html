@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Moodmate</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header with gradient background -->
+        <header class="app-header">
+            <div class="container">
+                <div class="d-flex align-items-center">
+                    <div class="header-icon">
+                        <i class="fas fa-cog"></i>
+                    </div>
+                    <div>
+                        <h1 class="app-title">Settings</h1>
+                        <p class="app-subtitle">Customize your Moodmate experience</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="container mt-4">
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="card card-primary">
+                        <div class="card-body">
+                            <h2 class="card-title">
+                                <i class="fas fa-sliders-h me-2"></i>Preferences
+                            </h2>
+                            
+                            <div class="settings-section">
+                                <h5 class="section-title">
+                                    <i class="fas fa-moon me-2"></i>Theme Settings
+                                </h5>
+                                
+                                <div class="setting-item">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div>
+                                            <h6 class="mb-0">Dark Mode</h6>
+                                            <small class="text-muted">Switch between light and dark themes</small>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="darkModeToggle">
+                                            <label class="form-check-label" for="darkModeToggle">Enable</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div>
+                                            <h6 class="mb-0">Auto Theme</h6>
+                                            <small class="text-muted">Automatically switch based on system preference</small>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="autoThemeToggle">
+                                            <label class="form-check-label" for="autoThemeToggle">Enable</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h5 class="section-title">
+                                    <i class="fas fa-bell me-2"></i>Notification Settings
+                                </h5>
+                                
+                                <div class="setting-item">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div>
+                                            <h6 class="mb-0">Daily Reminder</h6>
+                                            <small class="text-muted">Get reminded to write your daily entry</small>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="dailyReminderToggle">
+                                            <label class="form-check-label" for="dailyReminderToggle">Enable</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="setting-item">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div>
+                                            <h6 class="mb-0">Weekly Summary</h6>
+                                            <small class="text-muted">Receive weekly sentiment analysis</small>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="weeklySummaryToggle">
+                                            <label class="form-check-label" for="weeklySummaryToggle">Enable</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="settings-section">
+                                <h5 class="section-title">
+                                    <i class="fas fa-shield-alt me-2"></i>Privacy Settings
+                                </h5>
+                                
+                                <div class="setting-item">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div>
+                                            <h6 class="mb-0">Local Storage Only</h6>
+                                            <small class="text-muted">All data stays on your device</small>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="localStorageToggle" checked disabled>
+                                            <label class="form-check-label" for="localStorageToggle">Enabled</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2 d-md-block mt-4">
+                                <button class="btn btn-primary me-2" onclick="saveSettings()">
+                                    <i class="fas fa-save me-1"></i>Save Settings
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="resetSettings()">
+                                    <i class="fas fa-undo me-1"></i>Reset to Default
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <a href="/" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="container">
+                <div class="text-center py-3">
+                    <p class="mb-0">Moodmate - Your private emotional wellness companion</p>
+                    <p class="small text-muted mb-0">All entries are stored locally on your device</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='settings.js') }}"></script>
+</body>
+</html>
