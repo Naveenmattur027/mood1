@@ -1,4 +1,4 @@
-# app.py - Mongo removed; file-backed JSON storage
+# app.py - Mongo removed; file-backed JSON storage (complete)
 import os
 import json
 import threading
@@ -12,15 +12,39 @@ import re
 import jwt
 import bcrypt
 from functools import wraps
+import logging
 
-nltk.download('vader_lexicon', quiet=True)
+# NOTE: Do NOT call nltk.download at import time inside Gunicorn workers.
+# Download 'vader_lexicon' during build (or once on the host) with:
+# python -c "import nltk; nltk.download('vader_lexicon')"
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "your_secret_key_here")
 app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY", "jwt_secret_key_here")
 
-# Sentiment analyzer
-sia = SentimentIntensityAnalyzer()
+# Sentiment analyzer - initialize lazily and handle missing resource
+sia = None
+def ensure_sia():
+    """
+    Ensure the SentimentIntensityAnalyzer is available.
+    Returns True if available, False otherwise.
+    """
+    global sia
+    if sia is not None:
+        return True
+    try:
+        sia = SentimentIntensityAnalyzer()
+        return True
+    except LookupError:
+        logging.getLogger(__name__).warning(
+            "vader_lexicon not found. Run `nltk.download('vader_lexicon')` in the build step."
+        )
+        sia = None
+        return False
+    except Exception as e:
+        logging.getLogger(__name__).exception("Failed to initialize SentimentIntensityAnalyzer: %s", e)
+        sia = None
+        return False
 
 # Storage configuration
 DATA_FILE = os.environ.get("DATA_FILE", "data.json")
@@ -58,7 +82,7 @@ def load_data():
         return _data
 
 def save_data():
-    """Persist _data to DATA_FILE."""
+    """Persist _data to DATA_FILE atomically."""
     global _data
     with _data_lock:
         if _data is None:
@@ -100,7 +124,7 @@ def delete_all_entries():
         save_data()
 
 # -------------------------
-# JWT helpers (unchanged)
+# JWT helpers
 # -------------------------
 def generate_token(user_id):
     payload = {
@@ -141,7 +165,7 @@ def login():
     if request.method == 'GET':
         return render_template('login.html')
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     username = data.get('username')
     password = data.get('password')
 
@@ -155,7 +179,7 @@ def login():
     if not user:
         return jsonify({'message': 'Invalid username or password!'}), 401
 
-    # NOTE: currently stored as plain text in this demo; better to hash
+    # NOTE: currently stored as plain text in this demo; better to hash with bcrypt
     if 'password' in user and user['password'] != password:
         return jsonify({'message': 'Invalid username or password!'}), 401
 
@@ -177,7 +201,7 @@ def signup():
 
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
@@ -230,8 +254,20 @@ def get_entries():
 
 @app.route('/add_entry', methods=['POST'])
 def add_entry():
-    entry_text = request.form.get('entry') or request.get_json(silent=True, force=False) and request.get_json().get('entry')
+    # Accept JSON or form data
+    entry_text = None
+    if request.content_type and 'application/json' in request.content_type:
+        payload = request.get_json(silent=True) or {}
+        entry_text = payload.get('entry')
+    else:
+        entry_text = request.form.get('entry')
+        if not entry_text:
+            # fallback to JSON if frontend mis-sent content-type
+            payload = request.get_json(silent=True) or {}
+            entry_text = payload.get('entry')
+
     if not entry_text:
+        app.logger.warning("add_entry: no 'entry' found in request")
         return jsonify({"message": "No entry provided"}), 400
 
     date = datetime.date.today()
@@ -242,7 +278,11 @@ def add_entry():
         "entry": entry_text,
         "created_at": datetime.datetime.utcnow().isoformat()
     }
-    insert_entry(new_entry)
+    try:
+        insert_entry(new_entry)
+    except Exception as e:
+        app.logger.exception("Error inserting entry")
+        return jsonify({"error": "Error adding entry", "detail": str(e)}), 500
 
     entries = find_entries()
     # return sorted entries (descending)
@@ -251,10 +291,14 @@ def add_entry():
     except Exception:
         entries_sorted = list(reversed(entries))
     out = [{"date": e.get("date"), "entry": e.get("entry"), "id": e.get("id")} for e in entries_sorted]
-    return jsonify({"message": "Entry added successfully!", "entries": out})
+    return jsonify({"message": "Entry added successfully!", "entries": out}), 201
 
 @app.route('/get_sentiment', methods=['GET'])
 def get_sentiment():
+    # ensure sentiment model available
+    if not ensure_sia():
+        return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
+
     entries = find_entries()
     if not entries:
         return jsonify({"message": "No entries available for sentiment analysis."})
@@ -264,6 +308,10 @@ def get_sentiment():
 
 @app.route('/get_comprehensive_analysis', methods=['POST'])
 def get_comprehensive_analysis():
+    # ensure sentiment model available
+    if not ensure_sia():
+        return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
+
     entry_text = request.form.get('entry') or (request.get_json(silent=True) or {}).get('entry')
     if not entry_text:
         return jsonify({"message": "No entry provided for analysis."})
@@ -296,18 +344,27 @@ def get_comprehensive_analysis():
             "trend_insight": trend_insight
         })
     except Exception as e:
-        return jsonify({"message": f"Error in comprehensive analysis: {str(e)}"})
+        app.logger.exception("Error in comprehensive analysis")
+        return jsonify({"message": f"Error in comprehensive analysis: {str(e)}"}), 500
 
 @app.route('/get_current_entry_sentiment', methods=['POST'])
 def get_current_entry_sentiment():
+    # ensure sentiment model available
+    if not ensure_sia():
+        return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
+
     entry_text = request.form.get('entry') or (request.get_json(silent=True) or {}).get('entry')
     if not entry_text:
-        return jsonify({"message": "No entry provided for sentiment analysis."})
+        return jsonify({"message": "No entry provided for sentiment analysis."}), 400
     sentiment_score = sia.polarity_scores(entry_text)
     return jsonify({"sentiment": sentiment_score})
 
 @app.route('/get_daily_sentiment', methods=['GET'])
 def get_daily_sentiment():
+    # ensure sentiment model available
+    if not ensure_sia():
+        return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
+
     today = datetime.date.today()
     today_str = today.strftime("%A, %Y-%m-%d")
     entries = find_entries(lambda e: e.get('date') == today_str)
@@ -319,6 +376,10 @@ def get_daily_sentiment():
 
 @app.route('/get_weekly_sentiment', methods=['GET'])
 def get_weekly_sentiment():
+    # ensure sentiment model available
+    if not ensure_sia():
+        return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
+
     today = datetime.date.today()
     week_ago = today - timedelta(days=7)
     entries = find_entries()
@@ -348,6 +409,10 @@ def get_weekly_sentiment():
 
 @app.route('/get_monthly_sentiment', methods=['GET'])
 def get_monthly_sentiment():
+    # ensure sentiment model available
+    if not ensure_sia():
+        return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
+
     today = datetime.date.today()
     month_ago = today - timedelta(days=30)
     entries = find_entries()
@@ -377,6 +442,10 @@ def get_monthly_sentiment():
 
 @app.route('/get_sentiment_counts', methods=['GET'])
 def get_sentiment_counts():
+    # ensure sentiment model available
+    if not ensure_sia():
+        return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
+
     entries = find_entries()
     if not entries:
         return jsonify({"counts": {"happy": 0, "neutral": 0, "sad": 0}})
@@ -407,7 +476,7 @@ def clear_entries():
     return jsonify({"message": "Diary entries cleared!"})
 
 # -------------------------
-# Helper functions (same logic)
+# Helper functions
 # -------------------------
 def get_sentiment_category(compound):
     if compound >= 0.05:
@@ -560,4 +629,14 @@ def get_custom_emotion(text):
 if __name__ == '__main__':
     # Ensure data file exists on startup
     load_data()
+
+    # Try to initialize SIA here in the main process (helpful for local dev)
+    # In Gunicorn workers, ensure_sia() will be called on demand by routes.
+    try:
+        nltk.data.find('sentiment/vader_lexicon.zip')
+    except Exception:
+        # not found locally; do not block — ensure_sia() will handle missing resource
+        logging.getLogger(__name__).info("vader_lexicon not present at startup; ensure build step downloads it.")
+
+    # Local dev run
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=(os.environ.get("FLASK_DEBUG", "false").lower() == "true"))
