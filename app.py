@@ -1,11 +1,10 @@
-# app.py - Mongo removed; file-backed JSON storage (complete)
+# app.py - Mongo removed; file-backed JSON storage (vaderSentiment)
 import os
 import json
 import threading
 from uuid import uuid4
 from flask import Flask, render_template, request, jsonify, make_response
-from nltk.sentiment import SentimentIntensityAnalyzer
-import nltk
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import datetime
 from datetime import timedelta
 import re
@@ -14,37 +13,14 @@ import bcrypt
 from functools import wraps
 import logging
 
-# NOTE: Do NOT call nltk.download at import time inside Gunicorn workers.
-# Download 'vader_lexicon' during build (or once on the host) with:
-# python -c "import nltk; nltk.download('vader_lexicon')"
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "your_secret_key_here")
 app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY", "jwt_secret_key_here")
 
-# Sentiment analyzer - initialize lazily and handle missing resource
-sia = None
+# Sentiment analyzer (vaderSentiment) — no downloads required
+sia = SentimentIntensityAnalyzer()
 def ensure_sia():
-    """
-    Ensure the SentimentIntensityAnalyzer is available.
-    Returns True if available, False otherwise.
-    """
-    global sia
-    if sia is not None:
-        return True
-    try:
-        sia = SentimentIntensityAnalyzer()
-        return True
-    except LookupError:
-        logging.getLogger(__name__).warning(
-            "vader_lexicon not found. Run `nltk.download('vader_lexicon')` in the build step."
-        )
-        sia = None
-        return False
-    except Exception as e:
-        logging.getLogger(__name__).exception("Failed to initialize SentimentIntensityAnalyzer: %s", e)
-        sia = None
-        return False
+    return sia is not None
 
 # Storage configuration
 DATA_FILE = os.environ.get("DATA_FILE", "data.json")
@@ -295,7 +271,6 @@ def add_entry():
 
 @app.route('/get_sentiment', methods=['GET'])
 def get_sentiment():
-    # ensure sentiment model available
     if not ensure_sia():
         return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
 
@@ -308,7 +283,6 @@ def get_sentiment():
 
 @app.route('/get_comprehensive_analysis', methods=['POST'])
 def get_comprehensive_analysis():
-    # ensure sentiment model available
     if not ensure_sia():
         return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
 
@@ -349,7 +323,6 @@ def get_comprehensive_analysis():
 
 @app.route('/get_current_entry_sentiment', methods=['POST'])
 def get_current_entry_sentiment():
-    # ensure sentiment model available
     if not ensure_sia():
         return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
 
@@ -361,7 +334,6 @@ def get_current_entry_sentiment():
 
 @app.route('/get_daily_sentiment', methods=['GET'])
 def get_daily_sentiment():
-    # ensure sentiment model available
     if not ensure_sia():
         return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
 
@@ -376,7 +348,6 @@ def get_daily_sentiment():
 
 @app.route('/get_weekly_sentiment', methods=['GET'])
 def get_weekly_sentiment():
-    # ensure sentiment model available
     if not ensure_sia():
         return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
 
@@ -409,7 +380,6 @@ def get_weekly_sentiment():
 
 @app.route('/get_monthly_sentiment', methods=['GET'])
 def get_monthly_sentiment():
-    # ensure sentiment model available
     if not ensure_sia():
         return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
 
@@ -442,7 +412,6 @@ def get_monthly_sentiment():
 
 @app.route('/get_sentiment_counts', methods=['GET'])
 def get_sentiment_counts():
-    # ensure sentiment model available
     if not ensure_sia():
         return jsonify({"error": "Sentiment model not available. Contact admin."}), 503
 
@@ -629,14 +598,6 @@ def get_custom_emotion(text):
 if __name__ == '__main__':
     # Ensure data file exists on startup
     load_data()
-
-    # Try to initialize SIA here in the main process (helpful for local dev)
-    # In Gunicorn workers, ensure_sia() will be called on demand by routes.
-    try:
-        nltk.data.find('sentiment/vader_lexicon.zip')
-    except Exception:
-        # not found locally; do not block — ensure_sia() will handle missing resource
-        logging.getLogger(__name__).info("vader_lexicon not present at startup; ensure build step downloads it.")
 
     # Local dev run
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=(os.environ.get("FLASK_DEBUG", "false").lower() == "true"))
