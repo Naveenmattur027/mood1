@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moodmate - Personal Diary with Sentiment Analysis</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header with gradient background -->
+        <header class="app-header">
+            <div class="container">
+                <div class="d-flex align-items-center">
+                    <div class="header-icon">
+                        <i class="fas fa-book-open"></i>
+                    </div>
+                    <div>
+                        <h1 class="app-title">Moodmate</h1>
+                        <p class="app-subtitle">Your personal diary with emotional insights</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="container mt-4">
+            <!-- Main content area -->
+            <div class="row">
+                <!-- Left column - Diary Entry -->
+                <div class="col-lg-6 mb-4">
+                    <div class="card card-primary">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h2 class="card-title">
+                                    <i class="fas fa-pen-alt me-2"></i>New Entry
+                                </h2>
+                                <div>
+                                    <a href="/settings" class="btn btn-outline-secondary btn-sm me-2">
+                                        <i class="fas fa-cog"></i>
+                                    </a>
+                                    <span class="text-muted">{{ today }}</span>
+                                </div>
+                            </div>
+                            
+                            <textarea id="diaryEntry" class="form-control mb-3" rows="6" placeholder="How are you feeling today? Write your thoughts here..."></textarea>
+                            
+                            <div class="d-flex gap-2 mb-3">
+                                <button class="btn btn-primary flex-fill" onclick="addEntry()">
+                                    <i class="fas fa-plus-circle me-1"></i> Add Entry
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="startVoiceInput()">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Analysis buttons section -->
+                            <div class="analysis-section">
+                                <h5 class="section-title">
+                                    <i class="fas fa-chart-line me-2"></i>Analyze Your Entry
+                                </h5>
+                                
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-info" onclick="getCurrentEntrySentiment()">
+                                        <i class="fas fa-heartbeat me-2"></i>Basic Sentiment Analysis
+                                    </button>
+                                    <button class="btn btn-success" onclick="getComprehensiveAnalysis()">
+                                        <i class="fas fa-brain me-2"></i>Comprehensive Emotional Analysis
+                                    </button>
+                                </div>
+                                
+                                <h6 class="mt-3 section-subtitle">
+                                    <i class="fas fa-history me-2"></i>Historical Analysis
+                                </h6>
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-primary" onclick="getDailySentiment()">
+                                        <i class="fas fa-calendar-day me-2"></i>Today's Entries
+                                    </button>
+                                    <button class="btn btn-outline-primary" onclick="getWeeklySentiment()">
+                                        <i class="fas fa-calendar-week me-2"></i>This Week
+                                    </button>
+                                    <button class="btn btn-outline-primary" onclick="getMonthlySentiment()">
+                                        <i class="fas fa-calendar-alt me-2"></i>This Month
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Current Entry Analysis Card -->
+                    <div class="card card-accent mt-4">
+                        <div class="card-body">
+                            <h2 class="card-title">
+                                <i class="fas fa-search me-2"></i>Current Entry Analysis
+                            </h2>
+                            <div id="currentEntryAnalysis" class="analysis-result">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-file-alt fa-2x text-muted mb-3"></i>
+                                    <p class="text-muted">Your current entry analysis will appear here</p>
+                                    <p class="small text-muted">Write an entry and click "Basic Sentiment Analysis" or "Comprehensive Emotional Analysis" to get started</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right column - Entry History and Analysis -->
+                <div class="col-lg-6">
+                    <!-- Entry History -->
+                    <div class="card card-secondary mb-4">
+                        <div class="card-body">
+                            <h2 class="card-title">
+                                <i class="fas fa-history me-2"></i>Entry History
+                            </h2>
+                            <div id="entryHistory" class="entry-list">
+                                <div class="text-center py-5">
+                                    <i class="fas fa-book fa-2x text-muted mb-3"></i>
+                                    <p class="text-muted">No entries yet. Start writing your first diary entry!</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Analysis Results -->
+                    <div class="card card-accent">
+                        <div class="card-body">
+                            <h2 class="card-title">
+                                <i class="fas fa-robot me-2"></i>AI Analysis
+                            </h2>
+                            <div class="d-grid gap-2 d-md-block mb-3">
+                                <button class="btn btn-outline-info btn-sm me-1" onclick="getSentiment()">
+                                    <i class="fas fa-heart me-1"></i>All Sentiment
+                                </button>
+                                <button class="btn btn-outline-info btn-sm me-1" onclick="speakSentiment()">
+                                    <i class="fas fa-volume-up me-1"></i>Speak Results
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="clearEntries()">
+                                    <i class="fas fa-trash me-1"></i>Clear All
+                                </button>
+                            </div>
+                            <div id="sentimentResult" class="analysis-result">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-search fa-2x text-muted mb-3"></i>
+                                    <p class="text-muted">Your analysis results will appear here</p>
+                                    <p class="small text-muted">Write an entry and click "Analyze" to get started</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dashboard Section -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card card-dashboard">
+                        <div class="card-body">
+                            <h2 class="card-title">
+                                <i class="fas fa-chart-bar me-2"></i>Emotional Dashboard
+                            </h2>
+                            
+                            <div class="dashboard-stats">
+                                <div class="row text-center">
+                                    <div class="col-md-4 mb-3 mb-md-0">
+                                        <div class="stat-card positive">
+                                            <i class="fas fa-smile fa-2x mb-2"></i>
+                                            <h3 id="positiveCount">0</h3>
+                                            <p>Positive Entries</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3 mb-md-0">
+                                        <div class="stat-card neutral">
+                                            <i class="fas fa-meh fa-2x mb-2"></i>
+                                            <h3 id="neutralCount">0</h3>
+                                            <p>Neutral Entries</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-card negative">
+                                            <i class="fas fa-frown fa-2x mb-2"></i>
+                                            <h3 id="negativeCount">0</h3>
+                                            <p>Negative Entries</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-4">
+                                <div class="col-md-6">
+                                    <div class="chart-container">
+                                        <canvas id="sentimentBarChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="chart-container">
+                                        <canvas id="sentimentPieChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="container">
+                <div class="text-center py-3">
+                    <p class="mb-0">Moodmate - Your private emotional wellness companion</p>
+                    <p class="small text-muted mb-0">All entries are stored locally on your device</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+</body>
+</html>
